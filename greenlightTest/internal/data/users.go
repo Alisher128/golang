@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"database/sql" // New import
 	"errors"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -213,17 +214,131 @@ type MockUserModel struct {
 }
 
 func (m MockUserModel) Insert(user *User) error {
+	if user.Email == "exists@test.com" {
+		return ErrDuplicateEmail
+	}
+	if user.Email == "errorInsert@test.com" {
+		return errors.New("test")
+	}
+	if user.Email == "errorPermissions@test.com" {
+		user.ID = 2
+	} else if user.Email == "errorTokens@test.com" {
+		user.ID = 3
+	} else {
+		user.ID = 1
+	}
 	return nil
 }
 
 func (m MockUserModel) GetByEmail(email string) (*User, error) {
-	return nil, nil
+	if email == "error@test.com" {
+		return nil, errors.New("test")
+	}
+	if email == "notFound@test.com" {
+		return nil, ErrRecordNotFound
+	}
+
+	user := &User{
+		ID:    1,
+		Email: email,
+	}
+	user.Password.Set("pa$$word")
+
+	if email == "notMatch@test.com" {
+		user.Password.Set("passwordNotMatch")
+	}
+	if email == "errorToken@test.com" {
+		user.ID = 2
+	}
+
+	return user, nil
 }
 
 func (m MockUserModel) Update(user *User) error {
+	if user.Email == "updateConflict@test.com" {
+		return ErrEditConflict
+	} else if user.Email == "updateError@test.com" {
+		return errors.New("test")
+	}
+
 	return nil
 }
 
 func (m MockUserModel) GetForToken(tokenScope, tokenPlaintext string) (*User, error) {
-	return nil, nil
+	switch tokenPlaintext {
+	case strings.Repeat("b", 26):
+		return nil, ErrRecordNotFound
+	case strings.Repeat("c", 26):
+		return nil, errors.New("test")
+	case strings.Repeat("d", 26):
+		user := User{
+			ID:        1,
+			CreatedAt: time.Now(),
+			Name:      "test",
+			Email:     "updateConflict@test.com",
+			Activated: true,
+		}
+		user.Password.Set("password")
+		return &user, nil
+	case strings.Repeat("e", 26):
+		user := User{
+			ID:        1,
+			CreatedAt: time.Now(),
+			Name:      "test",
+			Email:     "updateError@test.com",
+			Activated: true,
+		}
+		user.Password.Set("password")
+		return &user, nil
+	case strings.Repeat("f", 26):
+		user := User{
+			ID:        -1,
+			CreatedAt: time.Now(),
+			Name:      "test",
+			Email:     "test@test.com",
+			Activated: true,
+		}
+		user.Password.Set("password")
+		return &user, nil
+	case strings.Repeat("g", 26):
+		user := User{
+			ID:        1,
+			CreatedAt: time.Now(),
+			Name:      "test",
+			Email:     "test@test.com",
+			Activated: false,
+		}
+		user.Password.Set("password")
+		return &user, nil
+	case strings.Repeat("h", 26):
+		user := User{
+			ID:        2,
+			CreatedAt: time.Now(),
+			Name:      "test",
+			Email:     "test@test.com",
+			Activated: true,
+		}
+		user.Password.Set("password")
+		return &user, nil
+	case strings.Repeat("k", 26):
+		user := User{
+			ID:        3,
+			CreatedAt: time.Now(),
+			Name:      "test",
+			Email:     "test@test.com",
+			Activated: true,
+		}
+		user.Password.Set("password")
+		return &user, nil
+	default:
+		user := User{
+			ID:        1,
+			CreatedAt: time.Now(),
+			Name:      "test",
+			Email:     "test@test.com",
+			Activated: true,
+		}
+		user.Password.Set("password")
+		return &user, nil
+	}
 }
