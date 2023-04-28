@@ -3,6 +3,7 @@ package data
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/lib/pq"
@@ -63,7 +64,7 @@ func (m PermissionModel) AddForUser(userID int64, codes ...string) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	
+
 	_, err := m.DB.ExecContext(ctx, query, userID, pq.Array(codes))
 	return err
 }
@@ -71,9 +72,19 @@ func (m PermissionModel) AddForUser(userID int64, codes ...string) error {
 type MockPermissionModel struct{}
 
 func (m MockPermissionModel) GetAllForUser(userID int64) (Permissions, error) {
-	return nil, nil
+	switch userID {
+	case 2:
+		return nil, errors.New("test")
+	case 3:
+		return []string{}, nil
+	default:
+		return []string{"movies:read", "movies:write"}, nil
+	}
 }
 
 func (m MockPermissionModel) AddForUser(userID int64, codes ...string) error {
+	if userID == 2 {
+		return errors.New("test")
+	}
 	return nil
 }
