@@ -1,12 +1,15 @@
 package data
 
-import "time"
-import "database/sql"
-import "greenlight.bcc/internal/validator"
-import "github.com/lib/pq"
-import "errors"
-import "context"
-import "fmt"
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/lib/pq"
+	"greenlight.bcc/internal/validator"
+)
 
 type Movie struct {
 	ID        int64     `json:"id"`
@@ -38,9 +41,9 @@ type MovieModel struct {
 
 func (m MovieModel) Insert(movie *Movie) error {
 	query := `
-INSERT INTO movies (title, year, runtime, genres)
-VALUES ($1, $2, $3, $4)
-RETURNING id, created_at, version`
+		INSERT INTO movies (title, year, runtime, genres)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, created_at, version`
 
 	args := []any{movie.Title, movie.Year, movie.Runtime, pq.Array(movie.Genres)}
 
@@ -164,7 +167,7 @@ func (m MovieModel) GetAll(title string, genres []string, filters Filters) ([]*M
 	defer cancel()
 
 	args := []any{title, pq.Array(genres), filters.limit(), filters.offset()}
-	
+
 	rows, err := m.DB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, Metadata{}, err
@@ -173,14 +176,13 @@ func (m MovieModel) GetAll(title string, genres []string, filters Filters) ([]*M
 
 	movies := []*Movie{}
 
-	
 	totalRecords := 0
 
 	for rows.Next() {
 		var movie Movie
 
 		err := rows.Scan(
-			&totalRecords, 
+			&totalRecords,
 			&movie.ID,
 			&movie.CreatedAt,
 			&movie.Title,
@@ -208,6 +210,9 @@ func (m MovieModel) GetAll(title string, genres []string, filters Filters) ([]*M
 type MockMovieModel struct{}
 
 func (m MockMovieModel) Insert(movie *Movie) error {
+	if movie.Title == "error" {
+		return errors.New("test")
+	}
 	return nil
 }
 
@@ -215,18 +220,49 @@ func (m MockMovieModel) Get(id int64) (*Movie, error) {
 	switch id {
 	case 1:
 		return &Movie{
-			ID: 1,
+			ID:        1,
 			CreatedAt: time.Now(),
-			Year: 2023,
-			Runtime: 105,
-			Title: "Test Mock",
-			Genres: []string{""},
+			Year:      2023,
+			Runtime:   105,
+			Title:     "Test Mock",
+			Genres:    []string{""},
+			Version:   1,
 		}, nil
+	case 11:
+		return nil, errors.New("test")
+	case 12:
+		return &Movie{
+			ID:        12,
+			CreatedAt: time.Now(),
+			Year:      2023,
+			Runtime:   105,
+			Title:     "Test Mock Conflict",
+			Genres:    []string{""},
+			Version:   2,
+		}, nil
+	case 13:
+		return &Movie{
+			ID:        13,
+			CreatedAt: time.Now(),
+			Year:      2023,
+			Runtime:   105,
+			Title:     "Test Mock",
+			Genres:    []string{""},
+			Version:   1,
+		}, nil
+	case 404:
+		panic("test")
 	default:
 		return nil, ErrRecordNotFound
 	}
 }
+
 func (m MockMovieModel) Update(movie *Movie) error {
+	if movie.Version == 2 {
+		return ErrEditConflict
+	} else if movie.ID == 13 {
+		return errors.New("test")
+	}
 	return nil
 }
 
@@ -234,11 +270,27 @@ func (m MockMovieModel) Delete(id int64) error {
 	switch id {
 	case 1:
 		return nil
+	case 13:
+		return errors.New("test")
 	default:
 		return ErrRecordNotFound
 	}
 }
 
-func (m MockMovieModel) GetAll(title string, genres []string, filters Filters) ([]*Movie, Metadata, error) { 
-	return nil, Metadata{}, nil
+func (m MockMovieModel) GetAll(title string, genres []string, filters Filters) ([]*Movie, Metadata, error) {
+	if title == "error" {
+		return nil, Metadata{}, errors.New("test")
+	}
+	movies := []*Movie{
+		{
+			ID:        1,
+			CreatedAt: time.Now(),
+			Year:      2023,
+			Runtime:   105,
+			Title:     "Test Mock",
+			Genres:    []string{""},
+		},
+	}
+	return movies, Metadata{}, nil
+
 }
