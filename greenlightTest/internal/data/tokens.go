@@ -6,21 +6,23 @@ import (
 	"crypto/sha256"
 	"database/sql" // New import
 	"encoding/base32"
-	"greenlight.bcc/internal/validator" // New import
+	"errors"
 	"time"
+
+	"greenlight.bcc/internal/validator" // New import
 )
 
 const (
-	ScopeActivation = "activation"
+	ScopeActivation     = "activation"
 	ScopeAuthentication = "authentication"
 )
 
 type Token struct {
-	Plaintext string `json:"token"`
-	Hash []byte `json:"-"`
-	UserID int64 `json:"-"`
-	Expiry time.Time `json:"expiry"`
-	Scope string `json:"-"`
+	Plaintext string    `json:"token"`
+	Hash      []byte    `json:"-"`
+	UserID    int64     `json:"-"`
+	Expiry    time.Time `json:"expiry"`
+	Scope     string    `json:"-"`
 }
 
 func generateToken(userID int64, ttl time.Duration, scope string) (*Token, error) {
@@ -44,7 +46,6 @@ func generateToken(userID int64, ttl time.Duration, scope string) (*Token, error
 	return token, nil
 }
 
-
 func ValidateTokenPlaintext(v *validator.Validator, tokenPlaintext string) {
 	v.Check(tokenPlaintext != "", "token", "must be provided")
 	v.Check(len(tokenPlaintext) == 26, "token", "must be 26 bytes long")
@@ -53,7 +54,6 @@ func ValidateTokenPlaintext(v *validator.Validator, tokenPlaintext string) {
 type TokenModel struct {
 	DB *sql.DB
 }
-
 
 func (m TokenModel) New(userID int64, ttl time.Duration, scope string) (*Token, error) {
 	token, err := generateToken(userID, ttl, scope)
@@ -76,7 +76,6 @@ func (m TokenModel) Insert(token *Token) error {
 	return err
 }
 
-
 func (m TokenModel) DeleteAllForUser(scope string, userID int64) error {
 	query := `
 	DELETE FROM tokens
@@ -92,7 +91,20 @@ type MockTokenModel struct {
 }
 
 func (m MockTokenModel) New(userID int64, ttl time.Duration, scope string) (*Token, error) {
-	return nil,nil
+	switch scope {
+	case ScopeActivation:
+		if userID == 3 {
+			return nil, errors.New("test")
+		}
+		return nil, nil
+	case ScopeAuthentication:
+		if userID == 2 {
+			return nil, errors.New("test")
+		}
+		return nil, nil
+	default:
+		return nil, nil
+	}
 }
 
 func (m MockTokenModel) Insert(token *Token) error {
@@ -100,5 +112,8 @@ func (m MockTokenModel) Insert(token *Token) error {
 }
 
 func (m MockTokenModel) DeleteAllForUser(scope string, userID int64) error {
+	if userID == -1 {
+		return errors.New("test")
+	}
 	return nil
 }
